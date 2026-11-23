@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market Desk</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><span class="logo">◆</span> Market Desk</div>
+    <nav id="nav">
+      <div class="navgroup">Automated research</div>
+      <a href="#overview" data-tab="overview">Overview</a>
+      <a href="#research" data-tab="research">Research pipeline</a>
+      <a href="#macro" data-tab="macro">Macro regime</a>
+      <a href="#desk" data-tab="desk">Ask the desk</a>
+      <div class="navgroup">Portfolio</div>
+      <a href="#portfolio" data-tab="portfolio">Builder &amp; risk</a>
+      <a href="#forecast" data-tab="forecast">Forecast</a>
+      <a href="#stress" data-tab="stress">Stress test</a>
+      <a href="#hedge" data-tab="hedge">Hedge lab</a>
+      <div class="navgroup">Setup</div>
+      <a href="#automation" data-tab="automation">Automation</a>
+    </nav>
+    <div class="side-foot">
+      <div id="dataBadge" class="badge">Loading…</div>
+      <button id="themeBtn" class="ghost small">Toggle theme</button>
+      <p class="disclaim">Automated analysis, not investment advice. Rules and an AI agent can both be wrong. Check primary sources before acting.</p>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div id="modeNote" class="alert" hidden></div>
+
+    <!-- ================= OVERVIEW ================= -->
+    <section id="tab-overview" class="tab">
+      <header class="tab-head">
+        <div><h1>Overview</h1><p class="sub" id="runLine">Waiting for data…</p></div>
+        <div class="row gap"><button id="runNow" class="primary" hidden>Run pipeline now</button><span id="runNowMsg" class="msg"></span></div>
+      </header>
+      <div class="card"><h3>Top-down regime <span class="src">rule-based, US data · + supportive of risk assets</span></h3><div id="regimeStrip" class="regime"></div><p class="hint" id="macroNote"></p></div>
+      <div class="grid g-ov">
+        <div class="card"><h3>Alerts <span class="src" id="alertCount"></span></h3><div id="alertList" class="alerts"></div></div>
+        <div class="card"><h3>Conviction history</h3><div class="chartbox"><canvas id="chHist"></canvas></div><p class="hint" id="histHint"></p></div>
+      </div>
+      <div class="card"><h3>Crowd mood <span class="src">Reddit r/wallstreetbets &amp; r/stocks daily threads, ApeWisdom, Tradestie</span></h3><div id="crowdBox"></div></div>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <!-- ================= RESEARCH ================= -->
+    <section id="tab-research" class="tab">
+      <header class="tab-head">
+        <div><h1 id="rsTitle">Research pipeline</h1><p class="sub" id="rsSub"></p></div>
+        <select id="rsSelect" aria-label="Subject"></select>
+      </header>
+      <div class="conviction card" id="rsConv"></div>
+      <nav class="stepnav" id="rsNav"></nav>
+      <div id="rsBody"></div>
+    </section>
+
+    <!-- ================= MACRO ================= -->
+    <section id="tab-macro" class="tab">
+      <header class="tab-head"><div><h1>Macro regime</h1><p class="sub">Collected by the engine from FRED, US Treasury, World Bank, ECB and CoinGecko on each run.</p></div></header>
+      <div class="card"><h3>Regime factors and inputs</h3><div id="regimeTbl" class="scrollx"></div></div>
+      <div class="grid g2">
+        <div class="card"><h3>Treasury yields &amp; real yield, % <span class="src">FRED</span></h3><div class="chartbox"><canvas id="chRates"></canvas></div></div>
+        <div class="card"><h3>Credit spread &amp; VIX <span class="src">FRED</span></h3><div class="chartbox"><canvas id="chRisk"></canvas></div></div>
+        <div class="card"><h3>Real GDP growth, % y/y <span class="src">World Bank</span></h3><div class="chartbox"><canvas id="chGdp"></canvas></div></div>
+        <div class="card"><h3>CPI inflation, % y/y <span class="src">World Bank</span></h3><div class="chartbox"><canvas id="chCpi"></canvas></div></div>
+        <div class="card"><h3>US public debt, $T <span class="src">FiscalData</span></h3><div class="chartbox"><canvas id="chDebt"></canvas></div></div>
+        <div class="card"><h3>FX &amp; crypto <span class="src">ECB, CoinGecko</span></h3><div id="fxTbl"></div></div>
+      </div>
+    </section>
+
+    <!-- ================= DESK ================= -->
+    <section id="tab-desk" class="tab">
+      <header class="tab-head"><div><h1>Ask the desk</h1><p class="sub">Claude answers from the latest automated run, and can pull any subject, the regime, alerts and your portfolio as tools.</p></div>
+        <button id="deskClear" class="ghost">Clear</button></header>
+      <div class="card chat">
+        <div id="chatLog" class="chatlog"></div>
+        <div class="chips" id="chatChips"></div>
+        <form id="chatForm" class="row gap"><input id="chatInput" placeholder="e.g. Where do evidence and price behaviour disagree most? How should I hedge my portfolio given the regime?" autocomplete="off"><button class="primary" id="chatSend">Ask</button><button type="button" class="ghost" id="chatStop" hidden>Stop</button></form>
+        <p class="hint" id="chatHint">Uses your own Claude usage. The first question asks for permission.</p>
+      </div>
+    </section>
+
+    <!-- ================= PORTFOLIO ================= -->
+    <section id="tab-portfolio" class="tab">
+      <header class="tab-head">
+        <div><h1>Portfolio builder &amp; risk</h1><p class="sub">Uses prices the engine collected on the latest run. Holdings are saved to the database, and new symbols are fetched on the next run.</p></div>
+      </header>
+      <div class="grid g-side">
+        <div class="card">
+          <h3>Holdings</h3>
+          <table class="tbl" id="holdTbl"><thead><tr><th>Symbol</th><th>Class</th><th>Weight %</th><th></th></tr></thead><tbody></tbody></table>
+          <div class="row gap wrap mt">
+            <button id="addHold" class="ghost small">+ Add</button>
+            <button id="normHold" class="ghost small">Normalize to 100%</button>
+            <button id="saveHold" class="small">Save holdings</button>
+          </div>
+          <div class="form mt">
+            <label>Benchmark <input id="pfBench" value="SPY"></label>
+            <label>Risk-free rate % <input id="pfRf" type="number" step="0.1" value="4.0"></label>
+            <label>Lookback (years) <input id="pfLook" type="number" step="0.5" min="0.5" value="3"></label>
+            <label>Max weight per asset % <input id="pfCap" type="number" step="5" min="5" max="100" value="40"></label>
+          </div>
+          <button id="pfRun" class="primary mt full">Analyze portfolio</button>
+          <h3 class="mt">Optimize</h3>
+          <div class="row gap wrap">
+            <button class="opt small" data-opt="equal">Equal weight</button>
+            <button class="opt small" data-opt="invvol">Inverse vol</button>
+            <button class="opt small" data-opt="minvar">Min variance</button>
+            <button class="opt small" data-opt="rp">Risk parity</button>
+            <button class="opt small" data-opt="maxsharpe">Max Sharpe</button>
+          </div>
+          <p class="hint">Max Sharpe uses historical mean returns, which are noisy estimates; treat it as hindsight. Min variance and risk parity rely only on the covariance and are more robust.</p>
+          <div id="pfMsg" class="msg"></div>
+        </div>
+        <div>
+          <div class="grid g4" id="pfKpis"></div>
+          <div class="grid g2">
+            <div class="card"><h3>Growth of 1 vs benchmark</h3><div class="chartbox"><canvas id="chEquity"></canvas></div></div>
+            <div class="card"><h3>Drawdown</h3><div class="chartbox"><canvas id="chDD"></canvas></div></div>
+            <div class="card"><h3>Efficient frontier (historical)</h3><div class="chartbox"><canvas id="chFrontier"></canvas></div></div>
+            <div class="card"><h3>Weight vs risk contribution</h3><div class="chartbox"><canvas id="chRC"></canvas></div></div>
+          </div>
+          <div class="card"><h3>Per-asset statistics</h3><div id="assetTbl" class="scrollx"></div></div>
+          <div class="card"><h3>Correlation matrix (daily returns)</h3><div id="corrTbl" class="scrollx"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= FORECAST ================= -->
+    <section id="tab-forecast" class="tab">
+      <header class="tab-head"><div><h1>Forecast: Monte Carlo</h1><p class="sub">Probabilistic outcome ranges for the current portfolio. A distribution, not a point prediction.</p></div></header>
+      <div class="grid g-side">
+        <div class="card form">
+          <label>Starting value <input id="mcStart" type="number" value="100000"></label>
+          <label>Annual contribution <input id="mcContrib" type="number" value="0"></label>
+          <label>Horizon (years) <input id="mcYears" type="number" step="0.5" value="5"></label>
+          <label>Target value <input id="mcTarget" type="number" value="150000"></label>
+          <label>Method
+            <select id="mcMethod"><option value="bootstrap">Block bootstrap (keeps fat tails &amp; clustering)</option><option value="gbm">Lognormal (GBM)</option></select></label>
+          <label>Expected annual return override % <input id="mcDrift" type="number" step="0.5" placeholder="blank = historical"></label>
+          <label>Paths <input id="mcPaths" type="number" value="3000" step="500"></label>
+          <button id="mcRun" class="primary full">Run simulation</button>
+          <p class="hint">Historical means rarely persist. Use a scenario EV from the research pipeline as the return assumption; historical volatility and tails are kept.</p>
+        </div>
+        <div>
+          <div class="grid g4" id="mcKpis"></div>
+          <div class="card"><h3>Fan chart: 5/25/50/75/95th percentiles</h3><div class="chartbox tall"><canvas id="chFan"></canvas></div></div>
+          <div class="card"><h3>Distribution of ending value</h3><div class="chartbox"><canvas id="chMcHist"></canvas></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= STRESS ================= -->
+    <section id="tab-stress" class="tab">
+      <header class="tab-head"><div><h1>Stress test</h1><p class="sub">Apply shocks by asset class to the current holdings. Presets are approximate peak-to-trough moves and can be edited.</p></div></header>
+      <div class="grid g2">
+        <div class="card">
+          <div class="row gap wrap"><label class="inline">Scenario <select id="stPreset"></select></label><label class="inline">Portfolio value <input id="stValue" type="number" value="100000"></label></div>
+          <table class="tbl mt" id="stTbl"><thead><tr><th>Asset class</th><th>Shock %</th><th>Your weight</th><th>P&amp;L</th></tr></thead><tbody></tbody></table>
+          <p class="hint">Assumes each holding moves with its class. Within-class dispersion, liquidity gaps and correlation breakdowns make real losses worse.</p>
+        </div>
+        <div>
+          <div class="grid g2" id="stKpis"></div>
+          <div class="card"><h3>Worst realized windows in your data</h3><div id="stHist"></div></div>
+          <div class="card"><h3>Contribution to scenario loss</h3><div class="chartbox"><canvas id="chStress"></canvas></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= HEDGE ================= -->
+    <section id="tab-hedge" class="tab">
+      <header class="tab-head"><div><h1>Hedge lab</h1><p class="sub">Size hedges using regression, beta, and options payoff analysis.</p></div></header>
+      <div class="grid g3">
+        <div class="card form">
+          <h3>Minimum-variance hedge</h3>
+          <p class="hint">h* = ρ·σ<sub>portfolio</sub>/σ<sub>hedge</sub>. Uses the portfolio built in Builder.</p>
+          <label>Hedge instrument <input id="hgSym" value="SPY"></label>
+          <label>Portfolio value <input id="hgValue" type="number" value="1000000"></label>
+          <label>Hedge contract price <input id="hgPx" type="number" value="6900"></label>
+          <label>Contract multiplier <input id="hgMult" type="number" value="50"></label>
+          <button id="hgRun" class="primary full">Compute</button>
+          <div id="hgOut" class="out"></div>
+        </div>
+        <div class="card form">
+          <h3>Beta targeting with index futures</h3>
+          <p class="hint">N = (β<sub>target</sub> − β<sub>portfolio</sub>) × V / (F × multiplier). Negative means sell.</p>
+          <label>Portfolio beta <input id="btBeta" type="number" step="0.01" value="1.0"></label>
+          <label>Target beta <input id="btTarget" type="number" step="0.1" value="0.5"></label>
+          <label>Portfolio value <input id="btValue" type="number" value="1000000"></label>
+          <label>Futures price <input id="btPx" type="number" value="6900"></label>
+          <label>Multiplier <input id="btMult" type="number" value="50"></label>
+          <button id="btRun" class="primary full">Compute</button>
+          <div id="btOut" class="out"></div>
+        </div>
+        <div class="card form">
+          <h3>Options overlay (Black-Scholes)</h3>
+          <label>Strategy <select id="opStrat"><option value="put">Protective put</option><option value="collar">Collar</option><option value="cc">Covered call</option><option value="putspread">Put spread</option></select></label>
+          <div class="row gap"><label>Spot <input id="opS" type="number" value="100"></label><label>Shares/units <input id="opQ" type="number" value="1000"></label></div>
+          <div class="row gap"><label>Put strike <input id="opK1" type="number" value="95"></label><label>Call / lower strike <input id="opK2" type="number" value="110"></label></div>
+          <div class="row gap"><label>Days <input id="opT" type="number" value="90"></label><label>Implied vol % <input id="opV" type="number" value="20"></label></div>
+          <div class="row gap"><label>Rate % <input id="opR" type="number" value="4"></label><label>Div yield % <input id="opQd" type="number" value="1.3"></label></div>
+          <button id="opRun" class="primary full">Price &amp; plot</button>
+          <div id="opOut" class="out"></div>
+        </div>
+      </div>
+      <div class="card"><h3>Payoff at expiry: hedged vs unhedged</h3><div class="chartbox tall"><canvas id="chPayoff"></canvas></div></div>
+    </section>
+
+    <!-- ================= AUTOMATION ================= -->
+    <section id="tab-automation" class="tab">
+      <header class="tab-head"><div><h1>Automation</h1><p class="sub">How the pipeline runs, its schedule, and what it watches.</p></div></header>
+      <div class="card"><h3>The pipeline <span class="src">your flowchart, automated</span></h3><div id="flow" class="flow"></div></div>
+      <div class="grid g2">
+        <div class="card"><h3>Schedule &amp; status</h3><div id="schedBox"></div>
+          <div id="schedCtl" class="form mt">
+            <div class="row gap wrap"><button id="runNow2" class="primary">Run pipeline now</button><button id="schedLoad" class="ghost small">Refresh status</button><span id="schedMsg" class="msg"></span></div>
+            <h4>Automatic runs</h4>
+            <label class="inline"><input type="checkbox" id="schEnabled" style="width:auto"> Enabled</label>
+            <div class="row gap wrap mt">
+              <label>Frequency <select id="schFreq">
+                <option value="hours">Every N hours</option><option value="daily">Every day</option><option value="weekdays">Weekdays (Mon–Fri)</option>
+                <option value="weekly">Once a week</option><option value="custom">Custom cron</option></select></label>
+              <label id="schHoursL">Every <select id="schHours"><option>1</option><option>2</option><option>3</option><option>4</option><option>6</option><option>8</option><option>12</option></select> hours</label>
+              <label id="schDayL">Day <select id="schDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></label>
+              <label id="schTimeL">Time <input id="schTime" type="time" value="05:13"></label>
+              <label id="schCronL">Cron (min hour dom mon dow) <input id="schCron" placeholder="13 5 * * 2-6"></label>
+              <label>Time zone <input id="schTz" list="tzList"></label><datalist id="tzList"></datalist>
+            </div>
+            <p class="hint" id="schPreview"></p>
+            <button id="schSave" class="small">Save schedule</button>
+            <p class="hint">Each run is a full Claude research session (about 10–20 minutes) and uses your Claude usage, so hourly schedules add up. Changes apply to the real scheduled task through your Claude Code Remote connector, which asks for permission the first time.</p>
+          </div></div>
+        <div class="card"><h3>Run history</h3><div id="runHist" class="scrollx"></div></div>
+      </div>
+      <div class="card"><h3>Watchlist <span class="src">read by every run</span></h3><div id="wlEditor" class="scrollx"></div>
+        <div class="row gap mt wrap"><button id="wlAdd" class="ghost small">+ Add subject</button><button id="wlSave" class="primary small">Save watchlist</button><span id="wlMsg" class="msg"></span></div>
+        <p class="hint">Symbols use Yahoo Finance tickers (^GSPC, BTC-USD, BBCA.JK, IDR=X). Several symbols form an equal-weight basket. Profile sets how the macro regime maps onto the subject. CFTC code is optional (Traders in Financial Futures).</p></div>
+    </section>
+  </main>
+</div>
+<script src="data/snapshot.js"></script>
+<script src="js/quant.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+<script src="js/research.js"></script>
+</body>
+</html>
