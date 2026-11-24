@@ -32,8 +32,19 @@ def get_json(url, **kw):
 
 # ---------------- prices (Yahoo Finance chart API) ----------------
 def yahoo_history(symbol, rng="3y"):
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(symbol)}?range={rng}&interval=1d&includeAdjustedClose=true"
-    j = get_json(url)
+    """Daily history. Yahoo rate-limits bursts, so callers fetch serially; on failure retry with back-off,
+    alternating between Yahoo's two public hosts."""
+    q = f"/v8/finance/chart/{urllib.parse.quote(symbol)}?range={rng}&interval=1d&includeAdjustedClose=true"
+    last = None
+    for attempt, host in enumerate(("query1", "query2", "query1", "query2")):
+        try:
+            j = get_json(f"https://{host}.finance.yahoo.com{q}", retries=0)
+            break
+        except Exception as e:
+            last = e
+            time.sleep(2 + 3 * attempt)
+    else:
+        raise RuntimeError(f"Yahoo {symbol}: {last}")
     res = j["chart"]["result"][0]
     ts = res.get("timestamp") or []
     ind = res["indicators"]
@@ -157,3 +168,71 @@ def google_news(query, days=7, limit=15):
         if len(out) >= limit:
             break
     return out
+
+
+# ---------------- Google Finance (via a Google Sheet of GOOGLEFINANCE formulas) ----------------
+def google_finance(sheet_id, tab="Quotes"):
+    """Rows keyed by Yahoo symbol: name, price, change %, P/E, EPS, market cap, 52w range, currency, delay."""
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={urllib.parse.quote(tab)}"
+    try:
+        raw = http_get(url, retries=0).decode("utf-8", "replace")
+    except Exception as e:
+        if "401" in str(e) or "403" in str(e):
+            raise RuntimeError("sheet is not shared 'anyone with the link can view'")
+        raise
+    if raw.lstrip().startswith("<"):
+        raise RuntimeError("sheet is not link-viewable (Google returned a sign-in page)")
+    rows = list(csv.reader(io.StringIO(raw)))
+    num = lambda x: float(x.replace(",", "")) if x and x.replace(",", "").replace(".", "", 1).lstrip("-").isdigit() else None
+    out = {}
+    for r in rows[1:]:
+        if not r or not r[0]:
+            continue
+        r = r + [""] * (12 - len(r))
+        out[r[0]] = {"gsym": r[1], "name": r[2] or None, "price": num(r[3]), "chg_pct": num(r[4]), "pe": num(r[5]), "eps": num(r[6]),
+                     "mcap": num(r[7]), "high52": num(r[8]), "low52": num(r[9]), "currency": r[10] or None, "delay_min": num(r[11]),
+                     "source": "Google Finance"}
+    return out
+
+
+# ---------------- EODHD (optional; key from the EODHD_API_TOKEN environment variable) ----------------
+def eodhd_symbol(yahoo):
+    if yahoo.endswith(".JK"):
+        return yahoo  # Jakarta listings use the same suffix
+    if yahoo.isalpha():
+        return yahoo + ".US"
+    return None  # indices, FX and crypto use other codes; not mapped
+
+
+def eodhd(path, token, **params):
+    params.update({"api_token": token, "fmt": "json"})
+    url = f"https://eodhd.com/api/{path}?" + urllib.parse.urlencode(params)
+    try:
+        return get_json(url, retries=1)
+    except Exception as e:
+        msg = str(e)
+        if "402" in msg or "403" in msg:
+            raise RuntimeError(f"EODHD /{path.split('/')[0]}: not included in your EODHD plan")
+        raise RuntimeError(f"EODHD /{path.split('/')[0]}: {msg[:120]}")
+
+
+def eodhd_snapshot(symbol, token):
+    """Fundamentals highlights/valuation and news sentiment for one stock (each part optional)."""
+    out, errs = {}, []
+    try:
+        f = eodhd(f"fundamentals/{symbol}", token, filter="Highlights,Valuation,AnalystRatings")
+        h, v, a = f.get("Highlights") or {}, f.get("Valuation") or {}, f.get("AnalystRatings") or {}
+        out["fundamentals"] = {"pe": h.get("PERatio"), "peg": h.get("PEGRatio"), "eps_ttm": h.get("EarningsShare"), "eps_est_cy": h.get("EPSEstimateCurrentYear"),
+                               "eps_est_ny": h.get("EPSEstimateNextYear"), "rev_growth_yoy": h.get("QuarterlyRevenueGrowthYOY"),
+                               "earn_growth_yoy": h.get("QuarterlyEarningsGrowthYOY"), "profit_margin": h.get("ProfitMargin"), "roe": h.get("ReturnOnEquityTTM"),
+                               "fwd_pe": v.get("ForwardPE"), "ps": v.get("PriceSalesTTM"), "pb": v.get("PriceBookMRQ"), "ev_ebitda": v.get("EnterpriseValueEbitda"),
+                               "analyst_rating": a.get("Rating"), "target_price": a.get("TargetPrice")}
+    except Exception as e:
+        errs.append(str(e))
+    try:
+        s = eodhd("sentiments", token, s=symbol)
+        series = (s or {}).get(symbol) or (s or {}).get(symbol.lower()) or []
+        out["news_sentiment"] = [{"date": x.get("date"), "count": x.get("count"), "normalized": x.get("normalized")} for x in series[:14]]
+    except Exception as e:
+        errs.append(str(e))
+    return out, errs

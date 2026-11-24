@@ -145,8 +145,21 @@
       ${d.crowd_read ? `<p>${by('agent')} ${esc(d.crowd_read)}</p>` : ''}
       ${slices.length ? `<details><summary>Most-upvoted crowd comments</summary>${slices.map(([n, v]) => `<p class="muted small"><b>${esc(n)}</b></p><ul class="tight">${(v.samples || v.top || []).slice(0, 6).map(x => `<li><span class="${cls(x.lean)}">${x.lean > 0 ? '▲' : x.lean < 0 ? '▼' : '•'}</span> ${esc(x.text)} <span class="muted">(${x.score})</span></li>`).join('')}</ul>`).join('')}</details>` : ''}`;
   }
+  function valuationBox(d) {
+    const v = d.valuation || {}, e = d.eodhd || {};
+    const big = x => (x == null ? '–' : x >= 1e12 ? (x / 1e12).toFixed(2) + 'T' : x >= 1e9 ? (x / 1e9).toFixed(1) + 'B' : x >= 1e6 ? (x / 1e6).toFixed(0) + 'M' : num(x, 0));
+    const rows = Object.entries(v);
+    let h = '';
+    if (rows.length) h += `<h4>Valuation snapshot ${by('rule')} <span class="muted small">Google Finance</span></h4><div class="scrollx"><table class="tbl num"><thead><tr><th>Symbol</th><th>Price</th><th>Today</th><th>P/E</th><th>EPS</th><th>Market cap</th><th>52w range</th><th>Position in range</th></tr></thead><tbody>${
+      rows.map(([s, x]) => { const pos = x.high52 && x.low52 && x.high52 > x.low52 ? (x.price - x.low52) / (x.high52 - x.low52) : null;
+        return `<tr><td>${esc(s)}</td><td>${num(x.price, 2)} ${esc(x.currency || '')}</td><td class="${cls(x.chg_pct)}">${x.chg_pct == null ? '–' : (x.chg_pct > 0 ? '+' : '') + x.chg_pct.toFixed(2) + '%'}</td><td>${x.pe == null ? '–' : x.pe.toFixed(1) + 'x'}</td><td>${x.eps == null ? '–' : num(x.eps, 2)}</td><td>${big(x.mcap)}</td><td>${num(x.low52, 2)} – ${num(x.high52, 2)}</td><td>${pos == null ? '–' : Math.round(pos * 100) + '%'}</td></tr>`; }).join('')}</tbody></table></div>`;
+    Object.entries(e).forEach(([s, x]) => { const f = x.fundamentals; if (!f) return;
+      h += `<h4>Fundamentals ${by('rule')} <span class="muted small">EODHD · ${esc(s)}</span></h4><div class="grid g4">${kpi('Forward P/E', f.fwd_pe == null ? '–' : (+f.fwd_pe).toFixed(1) + 'x', 'trailing ' + (f.pe == null ? '–' : (+f.pe).toFixed(1) + 'x'))}${kpi('Revenue growth y/y', f.rev_growth_yoy == null ? '–' : pct(f.rev_growth_yoy), 'earnings ' + (f.earn_growth_yoy == null ? '–' : pct(f.earn_growth_yoy)), cls(f.rev_growth_yoy))}${kpi('Profit margin', f.profit_margin == null ? '–' : pct(f.profit_margin), 'ROE ' + (f.roe == null ? '–' : pct(f.roe)))}${kpi('Analyst target', f.target_price == null ? '–' : num(f.target_price, 2), 'rating ' + (f.analyst_rating == null ? '–' : (+f.analyst_rating).toFixed(1) + '/5'))}</div>`; });
+    return h;
+  }
   const s3 = d => `<div class="grid g2"><div><h4>Bottom-up ${by('agent')}</h4>${(d.bu || []).length ? `<table class="tbl"><thead><tr><th>Factor</th><th>Value</th><th>Score</th></tr></thead><tbody>${d.bu.map(b => `<tr><td>${esc(b.factor)}<div class="muted small">${link(b.source || '', b.url)}</div></td><td>${esc(b.value)}</td><td class="${cls(b.score)}"><b>${b.score > 0 ? '+' : ''}${b.score}</b></td></tr>`).join('')}</tbody></table>` : '<p class="hint">No bottom-up assessment this run.</p>'}</div>
       <div><h4>Top-down</h4><table class="tbl"><thead><tr><th>Factor</th><th>Score</th><th></th></tr></thead><tbody>${(d.topdown || []).map(t => `<tr><td>${esc(t.factor)}<div class="muted small">${esc(t.why || '')}${t.rule_score != null ? ` (rule said ${t.rule_score > 0 ? '+' : ''}${t.rule_score})` : ''}</div></td><td class="${cls(t.score)}"><b>${t.score > 0 ? '+' : ''}${t.score}</b></td><td>${by(t.by)}</td></tr>`).join('')}</tbody></table></div></div>
+      ${valuationBox(d)}
       <div class="grid g3 mt">${kpi('Bottom-up avg', d.buAvg == null ? '–' : num(d.buAvg), '−2…+2', cls(d.buAvg))}${kpi('Top-down avg', d.tdAvg == null ? '–' : num(d.tdAvg), '−2…+2', cls(d.tdAvg))}${kpi('Cross-reference', esc(d.xref), '')}</div>`;
   const s4 = d => {
     const b = d.behavior; if (!b) return '<p class="hint">No price data.</p>';
@@ -344,7 +357,7 @@
     const a = S.config.automation;
     btn.disabled = true; msgEl.className = 'msg'; msgEl.textContent = 'Starting…';
     try {
-      await mcp.callTool(SRV, 'fire_trigger', { trigger_id: a.triggerId, text: 'Manual run requested from the dashboard.' });
+      await mcp.callTool(SRV, 'fire_trigger', { trigger_id: a.triggerId }); // no extra text: it arrives as a second turn and repeats the run
       msgEl.className = 'msg ok'; msgEl.textContent = 'Run started. Results appear here automatically in about 10–20 minutes.';
     } catch (e) { msgEl.className = 'msg err'; msgEl.textContent = mcpErr(e); } finally { btn.disabled = false; }
   }

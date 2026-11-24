@@ -3,6 +3,10 @@
 
 USER_AGENT = "MarketDesk/1.0 (personal research tool)"
 
+# Google Finance feed: a Google Sheet of GOOGLEFINANCE() formulas (tab "Quotes", column A = Yahoo symbol).
+# It must be shared "anyone with the link can view" for the engine to read it. Set to "" to disable.
+GOOGLE_FINANCE_SHEET = "1J-vSA6vDfNY8n3PSE4yVqrOVE68eKocnYxtGeMHmg1c"
+
 # profile -> sensitivity of the subject's price to each top-down factor signal.
 # Factor signals are oriented so +1 = growth up / disinflation / easier policy / easier liquidity /
 # tighter credit spreads / weaker dollar / risk-on. Sensitivity +1 means that condition is bullish for the subject.

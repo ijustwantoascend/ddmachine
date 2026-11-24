@@ -183,7 +183,7 @@ def main():
                "behavior_read": j.get("behavior_read", ""), "confirm": confirm,
                "headlines": sub.get("headlines", []), "evidence": ev, "evidenceStats": es, "narratives": j.get("narratives", []),
                "bias_checks": j.get("bias_checks", {}), "bu": bu, "buAvg": bu_avg, "topdown": td, "tdAvg": td_avg, "xref": xref,
-               "cot": cot, "onchain": sub.get("onchain"), "crowd": sub.get("crowd"), "crowd_read": j.get("crowd_read", ""), "flows_extra": extra, "flowSignal": flow,
+               "cot": cot, "valuation": sub.get("valuation"), "eodhd": sub.get("eodhd"), "onchain": sub.get("onchain"), "crowd": sub.get("crowd"), "crowd_read": j.get("crowd_read", ""), "flows_extra": extra, "flowSignal": flow,
                "scenarios": sc, "scenarioBaseline": sub.get("scenarios_baseline"), "driftPrior": sub.get("drift_prior"), "scenarioStats": ss,
                "conviction": conv, "summary": j.get("summary", []), "invalidation": j.get("invalidation", ""), "actions": j.get("actions", ""),
                "alerts": sub_alerts, "gaps": sub.get("gaps", []), "agentRan": bool(j)}

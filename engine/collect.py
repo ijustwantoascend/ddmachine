@@ -16,7 +16,7 @@ from statistics import mean, median
 from . import collectors as C
 from . import quant as Q
 from . import crowd as CR
-from .config import WATCHLIST, PORTFOLIO, PROFILES, DRIFT_PRIOR, FRED
+from .config import WATCHLIST, PORTFOLIO, PROFILES, DRIFT_PRIOR, FRED, GOOGLE_FINANCE_SHEET
 
 FACTOR_LABELS = {"growth": "Growth cycle", "inflation": "Inflation trend", "policy": "Monetary policy", "liquidity": "Liquidity",
                  "credit": "Credit conditions", "dollar": "Dollar", "risk": "Risk appetite"}
@@ -179,10 +179,30 @@ def main():
         except Exception as e:
             gaps.append(f"Prices {sym}: {e}")
             return sym, None
-    with ThreadPoolExecutor(4) as ex:
-        for sym, s in ex.map(fetch, sorted(syms)):
-            if s and len(s["close"]) > 30:
-                prices[sym] = s
+    def fetch_all(symbols, record):
+        for sym in symbols:  # serial on purpose: Yahoo throttles parallel bursts
+            try:
+                s = C.yahoo_history(sym)
+                if len(s["close"]) > 30:
+                    prices[sym] = s
+            except Exception as e:
+                if record:
+                    gaps.append(f"Prices {sym}: {e}")
+            time.sleep(0.6)
+    fetch_all(sorted(syms), record=False)
+    missing = sorted(syms - set(prices))
+    if missing:
+        time.sleep(20)  # let Yahoo's rate limit cool down, then one final pass
+        fetch_all(missing, record=True)
+
+    # ---- Google Finance quotes & valuation (sheet feed) ----
+    gf = {}
+    if GOOGLE_FINANCE_SHEET:
+        try:
+            gf = C.google_finance(GOOGLE_FINANCE_SHEET)
+        except Exception as e:
+            gaps.append(f"Google Finance sheet: {e}")
+    eod_token = os.environ.get("EODHD_API_TOKEN", "").strip()
 
     # ---- FRED regime ----
     fred = {}
@@ -214,9 +234,23 @@ def main():
     for spec in watchlist:
         sid = spec["id"]
         sub = {"id": sid, "spec": spec, "gaps": []}
+        val = {sym: gf[sym] for sym in spec["symbols"] if sym in gf and gf[sym].get("price") is not None}
+        if val:
+            sub["valuation"] = val
+        if eod_token and spec.get("type") in ("Stock", "Industry / sub-sector"):
+            for sym in spec["symbols"]:
+                es = C.eodhd_symbol(sym)
+                if not es:
+                    continue
+                snap, errs = C.eodhd_snapshot(es, eod_token)
+                if snap:
+                    sub.setdefault("eodhd", {})[sym] = snap
+                for e in errs:
+                    if e not in sub["gaps"]:
+                        sub["gaps"].append(e)
         legs = [prices[s] for s in spec["symbols"] if s in prices]
         if not legs:
-            sub["gaps"].append("No price data")
+            sub["gaps"].append("No price history (Yahoo)" + ("; latest quote from Google Finance only" if val else ""))
         else:
             series = legs[0] if len(legs) == 1 else Q.basket(legs)
             crypto = spec.get("profile") == "crypto"
@@ -316,6 +350,11 @@ def digest(o):
             c = s["cot"]
             L.append(f"- CFTC {c['market']} ({c['asof']}): asset managers net {c['am_net_pct']}% of OI (4wk {c['am_chg4_pp']:+}pp, z {c['am_z']}), "
                      f"leveraged funds net {c['lev_net_pct']}% (z {c['lev_z']}), flow signal {c['signal']:+.2f}")
+        for sym, v in (s.get("valuation") or {}).items():
+            L.append(f"- Google Finance {sym}: price {v['price']} {v['currency'] or ''} ({v['chg_pct']}% today), P/E {v['pe']}, EPS {v['eps']}, "
+                     f"mkt cap {v['mcap']}, 52w {v['low52']}-{v['high52']}, delay {v['delay_min']} min")
+        for sym, e in (s.get("eodhd") or {}).items():
+            L.append(f"- EODHD {sym}: {json.dumps(e)[:600]}")
         if s.get("onchain"):
             L.append(f"- CoinGecko: {json.dumps(s['onchain'])}")
         c = s.get("crowd")

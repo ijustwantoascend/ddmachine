@@ -50,7 +50,7 @@ For each subject, using the digest plus **WebSearch** (budget: about 2–4 searc
      check publication dates (drop anything older than about 2 weeks), and flag disagreements between sources (e.g. retail
      money buying while WSB comments are mostly negative). Do not use PullPush or other scrapers that refuse automated clients.
      If nothing current turns up, leave the crowd fields empty rather than guessing.
-2. **Bottom-up** (`bu`, 3–6 factors, score −2..+2, each with the number and its source). Indices: earnings growth and revisions, valuation vs
+2. **Bottom-up** (`bu`, 3–6 factors; start from the digest's Google Finance P/E, EPS, market cap and 52-week range, and EODHD fundamentals when present, citing them as the source, score −2..+2, each with the number and its source). Indices: earnings growth and revisions, valuation vs
    history, breadth/concentration. Crypto: adoption/ETF holdings, supply/unlocks, fees/activity, regulation. Banks: loan growth, NIM, NPL/asset
    quality, valuation (P/B). FX/rates: carry, real-rate differential, current account, central-bank stance.
 3. **Top-down** (`td_overrides`): the rule scores cover growth, inflation, policy, liquidity, credit, dollar and risk appetite (US data). Override
